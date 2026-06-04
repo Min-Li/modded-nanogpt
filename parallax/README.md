@@ -36,6 +36,7 @@ SOAP-H + Parallax's **2880** (n=4) is below the best current Track-3 record ([#3
 | variant | logs | per-seed crossing |
 |---|---|---|
 | `rec27_soaph/`    | `seed{0..3}.txt` | 2910 / 2865 / 2870 / 2860 |
+| `rec27_gqa3/`     | `seed{0..3}.txt` | 2950 / 2950 / 2975 / 2950 |
 | `rec28_dynmuon/`  | `seed{0..2}.txt` | 2950 / 2975 / 2975 |
 | `rec17_aurora/`   | `seed0.txt` | 3025 |
 | `rec16_trustlight/` | `seed0.txt` | 3052 |
@@ -47,6 +48,22 @@ SOAP-H + Parallax's **2880** (n=4) is below the best current Track-3 record ([#3
 
 For the **vanilla-attention baseline** trajectory of each, use the corresponding official record log
 already in this repo under `records/track_3_optimization/` (the benchmark ID in the table above).
+
+## Param-controlled study (GQA-3): is the gain just the extra params?
+
+Full Parallax adds the probe projection `W_R` (≈ +7M params at this 124M scale), so a fair question is
+whether SOAP-H + Parallax's **2880** is bought by those params rather than by the mechanism. `rec27_gqa3.py`
+controls for this: it applies GQA with `H_kv = 3` (a 2:1 ratio), compressing **only `k`/`v` to 3 heads**
+while keeping `q`, the probe `r`, and the output projection at the full 6 heads. The removed `k`/`v`
+params (−0.59M) exactly offset the added `W_R` (+0.59M at this config) → **total parameter count is
+identical to the vanilla MHA-6 baseline**. (The kernel ties all of `q`/`k`/`v`/`r` to a single
+power-of-two `head_dim`, so GQA on `k`/`v` is the cleanest knob that leaves the probe + query + output
+full; `parallax_func` derives `n_rep = H_q // H_kv` natively, so only `W_k`/`W_v`'s output dim changes.)
+
+**Result (n=4, compiled):** GQA-3 seed-mean crosses **2975** (per-seed 2950 / 2950 / 2975 / 2950), versus
+the vanilla SOAP-H baseline at **~3100–3125** and full Parallax (+7M) at **2880**. So at *identical*
+params the mechanism still wins ~125 steps, i.e. roughly **57% of Parallax's step-gain is parameter-free**;
+the remaining gap to 2880 is what the extra `W_R` capacity buys.
 
 ## How to run
 
